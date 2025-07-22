@@ -122,35 +122,77 @@
 
   function playStartSound() {
     try {
-      startSound.play();
+      if (startSound && startSound.play) {
+        startSound.play().catch(e => {
+          console.log('Audio file not found, using fallback');
+          playFallbackStartSound();
+        });
+      } else {
+        playFallbackStartSound();
+      }
     } catch (e) {
-      // フォールバック：Web Audio API
+      playFallbackStartSound();
+    }
+  }
+
+  function playFallbackStartSound() {
+    try {
       createAudioElement(523, 0.2);
       setTimeout(() => createAudioElement(659, 0.2), 100);
       setTimeout(() => createAudioElement(784, 0.3), 200);
+    } catch (e) {
+      console.log('Audio not supported');
     }
   }
 
   function playGoalSound() {
     try {
-      goalSound.play();
+      if (goalSound && goalSound.play) {
+        goalSound.play().catch(e => {
+          console.log('Audio file not found, using fallback');
+          playFallbackGoalSound();
+        });
+      } else {
+        playFallbackGoalSound();
+      }
     } catch (e) {
-      // フォールバック：Web Audio API
+      playFallbackGoalSound();
+    }
+  }
+
+  function playFallbackGoalSound() {
+    try {
       createAudioElement(523, 0.15);
       setTimeout(() => createAudioElement(659, 0.15), 100);
       setTimeout(() => createAudioElement(784, 0.15), 200);
       setTimeout(() => createAudioElement(1047, 0.4), 300);
+    } catch (e) {
+      console.log('Audio not supported');
     }
   }
 
   function playFallSound() {
     try {
-      fallSound.play();
+      if (fallSound && fallSound.play) {
+        fallSound.play().catch(e => {
+          console.log('Audio file not found, using fallback');
+          playFallbackFallSound();
+        });
+      } else {
+        playFallbackFallSound();
+      }
     } catch (e) {
-      // フォールバック：Web Audio API
+      playFallbackFallSound();
+    }
+  }
+
+  function playFallbackFallSound() {
+    try {
       for (let i = 0; i < 10; i++) {
         setTimeout(() => createAudioElement(800 - i * 60, 0.05, 'sawtooth'), i * 20);
       }
+    } catch (e) {
+      console.log('Audio not supported');
     }
   }
 
@@ -397,29 +439,36 @@
   }
 
   function startGame() {
-    gameRunning = true;
     playStartSound();
     startButton.style.display = 'none';
     
     // デバイスの向きの許可を要求
-    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
       DeviceOrientationEvent.requestPermission()
         .then(response => {
           if (response == 'granted') {
             window.addEventListener("deviceorientation", handleDeviceOrientation);
           }
+          startGameLoop();
         })
-        .catch(console.error);
+        .catch(err => {
+          console.log('DeviceOrientation permission denied:', err);
+          startGameLoop();
+        });
     } else {
       window.addEventListener("deviceorientation", handleDeviceOrientation);
+      startGameLoop();
     }
-    
+  }
+
+  function startGameLoop() {
+    gameRunning = true;
     updateBall();
   }
 
   startButton.addEventListener("click", () => {
     resetGame();
-    setTimeout(startGame, 100);
+    startGame();
   });
 
   // 初期化

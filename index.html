@@ -63,10 +63,32 @@
     #startButton:hover {
       background-color: #45a049;
     }
+    #startButton:active {
+      background-color: #3e8e41;
+      transform: translateY(1px);
+    }
     #info {
       margin: 10px 0;
       font-size: 14px;
       color: #666;
+    }
+    #controls {
+      margin: 10px 0;
+      display: none;
+    }
+    .control-btn {
+      padding: 10px;
+      margin: 5px;
+      font-size: 16px;
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .control-btn:active {
+      background-color: #1976D2;
     }
   </style>
 </head>
@@ -75,6 +97,13 @@
 <h1>玉転がし迷路ゲーム</h1>
 <div id="info">デバイスを傾けてボールを操作し、緑のゴールを目指しましょう！<br>黒い穴に落ちないよう注意してください。</div>
 <button id="startButton">スタート</button>
+<div id="controls">
+  <div>キーボード操作:</div>
+  <button class="control-btn" data-key="ArrowUp">↑</button><br>
+  <button class="control-btn" data-key="ArrowLeft">←</button>
+  <button class="control-btn" data-key="ArrowDown">↓</button>
+  <button class="control-btn" data-key="ArrowRight">→</button>
+</div>
 <div id="game">
   <div class="ball" id="ball"></div>
   <div class="goal" id="goal"></div>
@@ -89,6 +118,7 @@
   const ball = document.getElementById("ball");
   const goal = document.getElementById("goal");
   const startButton = document.getElementById("startButton");
+  const controls = document.getElementById("controls");
   const startSound = document.getElementById("startSound");
   const goalSound = document.getElementById("goalSound");
   const fallSound = document.getElementById("fallSound");
@@ -100,29 +130,35 @@
   let walls = [];
   let holes = [];
   let gameRunning = false;
+  let keys = {};
 
   // 音声を動的に作成（実際のファイルがない場合の代替）
   function createAudioElement(frequency, duration, type = 'sine') {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
-    oscillator.type = type;
-    
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-    
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + duration);
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+      oscillator.type = type;
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + duration);
+    } catch (e) {
+      console.log('Web Audio API not supported');
+    }
   }
 
   function playStartSound() {
+    console.log('Playing start sound...');
     try {
-      if (startSound && startSound.play) {
+      if (startSound) {
         startSound.play().catch(e => {
           console.log('Audio file not found, using fallback');
           playFallbackStartSound();
@@ -136,20 +172,15 @@
   }
 
   function playFallbackStartSound() {
-    try {
-      createAudioElement(523, 0.2);
-      setTimeout(() => createAudioElement(659, 0.2), 100);
-      setTimeout(() => createAudioElement(784, 0.3), 200);
-    } catch (e) {
-      console.log('Audio not supported');
-    }
+    createAudioElement(523, 0.2);
+    setTimeout(() => createAudioElement(659, 0.2), 100);
+    setTimeout(() => createAudioElement(784, 0.3), 200);
   }
 
   function playGoalSound() {
     try {
-      if (goalSound && goalSound.play) {
+      if (goalSound) {
         goalSound.play().catch(e => {
-          console.log('Audio file not found, using fallback');
           playFallbackGoalSound();
         });
       } else {
@@ -161,21 +192,16 @@
   }
 
   function playFallbackGoalSound() {
-    try {
-      createAudioElement(523, 0.15);
-      setTimeout(() => createAudioElement(659, 0.15), 100);
-      setTimeout(() => createAudioElement(784, 0.15), 200);
-      setTimeout(() => createAudioElement(1047, 0.4), 300);
-    } catch (e) {
-      console.log('Audio not supported');
-    }
+    createAudioElement(523, 0.15);
+    setTimeout(() => createAudioElement(659, 0.15), 100);
+    setTimeout(() => createAudioElement(784, 0.15), 200);
+    setTimeout(() => createAudioElement(1047, 0.4), 300);
   }
 
   function playFallSound() {
     try {
-      if (fallSound && fallSound.play) {
+      if (fallSound) {
         fallSound.play().catch(e => {
-          console.log('Audio file not found, using fallback');
           playFallbackFallSound();
         });
       } else {
@@ -187,18 +213,14 @@
   }
 
   function playFallbackFallSound() {
-    try {
-      for (let i = 0; i < 10; i++) {
-        setTimeout(() => createAudioElement(800 - i * 60, 0.05, 'sawtooth'), i * 20);
-      }
-    } catch (e) {
-      console.log('Audio not supported');
+    for (let i = 0; i < 10; i++) {
+      setTimeout(() => createAudioElement(800 - i * 60, 0.05, 'sawtooth'), i * 20);
     }
   }
 
   function createMazeWalls() {
     // 既存の壁を削除
-    walls.forEach(w => w.remove());
+    walls.forEach(w => w.element.remove());
     walls = [];
 
     const mazeData = [
@@ -229,6 +251,8 @@
 
     const numHoles = 3;
     const maxAttempts = 50;
+    const gameWidth = game.clientWidth || 400;
+    const gameHeight = game.clientHeight || 400;
 
     for (let i = 0; i < numHoles; i++) {
       let attempts = 0;
@@ -236,8 +260,8 @@
       let holeX, holeY;
 
       while (!validPosition && attempts < maxAttempts) {
-        holeX = Math.random() * (game.clientWidth - 30);
-        holeY = Math.random() * (game.clientHeight - 30);
+        holeX = Math.random() * (gameWidth - 30);
+        holeY = Math.random() * (gameHeight - 30);
         
         validPosition = true;
         
@@ -276,10 +300,12 @@
   function findValidPosition(width, height, excludeWalls = true, excludeHoles = true) {
     const maxAttempts = 100;
     let attempts = 0;
+    const gameWidth = game.clientWidth || 400;
+    const gameHeight = game.clientHeight || 400;
 
     while (attempts < maxAttempts) {
-      const x = Math.random() * (game.clientWidth - width);
-      const y = Math.random() * (game.clientHeight - height);
+      const x = Math.random() * (gameWidth - width);
+      const y = Math.random() * (gameHeight - height);
       let valid = true;
 
       // 壁との重複チェック
@@ -346,9 +372,21 @@
   function updateBall() {
     if (!gameRunning) return;
 
-    const friction = 0.98;
+    // キーボード入力の処理
+    const force = 0.5;
+    if (keys['ArrowUp'] || keys['KeyW']) velocityY -= force;
+    if (keys['ArrowDown'] || keys['KeyS']) velocityY += force;
+    if (keys['ArrowLeft'] || keys['KeyA']) velocityX -= force;
+    if (keys['ArrowRight'] || keys['KeyD']) velocityX += force;
+
+    const friction = 0.95;
+    const maxVelocity = 5;
+    
     velocityX *= friction;
     velocityY *= friction;
+    
+    velocityX = Math.max(-maxVelocity, Math.min(maxVelocity, velocityX));
+    velocityY = Math.max(-maxVelocity, Math.min(maxVelocity, velocityY));
 
     // 新しい位置を計算
     let newX = posX + velocityX;
@@ -373,8 +411,10 @@
     }
 
     // ゲーム領域内に制限
-    newX = Math.max(0, Math.min(game.clientWidth - 20, newX));
-    newY = Math.max(0, Math.min(game.clientHeight - 20, newY));
+    const gameWidth = game.clientWidth || 400;
+    const gameHeight = game.clientHeight || 400;
+    newX = Math.max(0, Math.min(gameWidth - 20, newX));
+    newY = Math.max(0, Math.min(gameHeight - 20, newY));
 
     posX = newX;
     posY = newY;
@@ -393,7 +433,7 @@
       playGoalSound();
       setTimeout(() => {
         alert("ゴール成功！");
-        resetGame();
+        initializeGame();
       }, 500);
       return;
     }
@@ -405,7 +445,7 @@
         playFallSound();
         setTimeout(() => {
           alert("穴に落ちました！ゲームオーバー");
-          resetGame();
+          initializeGame();
         }, 500);
         return;
       }
@@ -418,61 +458,96 @@
     if (!gameRunning) return;
     
     const maxTilt = 30;
-    const maxVelocity = 3;
+    const force = 0.4;
     
     const gammaRatio = Math.max(-1, Math.min(1, (e.gamma || 0) / maxTilt));
     const betaRatio = Math.max(-1, Math.min(1, (e.beta || 0) / maxTilt));
     
-    velocityX += gammaRatio * 0.3;
-    velocityY += betaRatio * 0.3;
-    
-    velocityX = Math.max(-maxVelocity, Math.min(maxVelocity, velocityX));
-    velocityY = Math.max(-maxVelocity, Math.min(maxVelocity, velocityY));
+    velocityX += gammaRatio * force;
+    velocityY += betaRatio * force;
   }
 
-  function resetGame() {
+  function initializeGame() {
+    console.log('Initializing game...');
     gameRunning = false;
     createMazeWalls();
     createHoles();
     resetBallAndGoal();
     startButton.style.display = 'inline-block';
+    controls.style.display = 'none';
   }
 
   function startGame() {
+    console.log('Starting game...');
     playStartSound();
+    gameRunning = true;
     startButton.style.display = 'none';
+    controls.style.display = 'block';
     
-    // デバイスの向きの許可を要求
+    // デバイスの向きの許可を要求（iOS対応）
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
       DeviceOrientationEvent.requestPermission()
         .then(response => {
-          if (response == 'granted') {
+          if (response === 'granted') {
             window.addEventListener("deviceorientation", handleDeviceOrientation);
           }
-          startGameLoop();
         })
         .catch(err => {
           console.log('DeviceOrientation permission denied:', err);
-          startGameLoop();
         });
     } else {
+      // 非iOS環境
       window.addEventListener("deviceorientation", handleDeviceOrientation);
-      startGameLoop();
     }
-  }
-
-  function startGameLoop() {
-    gameRunning = true;
+    
     updateBall();
   }
 
-  startButton.addEventListener("click", () => {
-    resetGame();
-    startGame();
+  // キーボードイベント
+  document.addEventListener('keydown', (e) => {
+    keys[e.code] = true;
+    e.preventDefault();
+  });
+
+  document.addEventListener('keyup', (e) => {
+    keys[e.code] = false;
+    e.preventDefault();
+  });
+
+  // タッチボタンイベント
+  document.querySelectorAll('.control-btn').forEach(btn => {
+    btn.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      keys[btn.dataset.key] = true;
+    });
+    
+    btn.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      keys[btn.dataset.key] = false;
+    });
+    
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      keys[btn.dataset.key] = true;
+    });
+    
+    btn.addEventListener('mouseup', (e) => {
+      e.preventDefault();
+      keys[btn.dataset.key] = false;
+    });
+  });
+
+  // スタートボタンイベント
+  startButton.addEventListener("click", (e) => {
+    console.log('Start button clicked!');
+    e.preventDefault();
+    initializeGame();
+    setTimeout(startGame, 100);
   });
 
   // 初期化
-  resetGame();
+  console.log('Page loaded, initializing...');
+  initializeGame();
 </script>
 
 </body>
